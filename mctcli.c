@@ -290,6 +290,11 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 														 *tmpkeyB,
 														 MFC_KEY_B) == OPERATION_OK)) {
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+							// FIXME: copy the key in dump
+							if(k == mifare_classic_sector_last_block(i)) {
+								memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
+								memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
+							}
 							printblock(&data);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
@@ -308,6 +313,11 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 														 *tmpkeyA,
 														 MFC_KEY_A) == OPERATION_OK)) {
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+							// FIXME: copy the key in dump
+							if(k == mifare_classic_sector_last_block(i)) {
+								memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
+								memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
+							}
 							printblock(&data);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
@@ -326,6 +336,8 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 	}
 	return(0);
 }
+
+// FIXME : catch CTRL+C and quit clean
 
 int main(int argc, char** argv)
 {
