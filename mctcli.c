@@ -50,6 +50,7 @@ MifareClassicKey keys[] = {
 };
 
 struct keymap {
+	int prout;
 	MifareClassicKey *keyA;
 	MifareClassicKey *keyB;
 	uint16_t readA;
@@ -175,13 +176,98 @@ void printhelp(char *binname)
 	printf(" -h          show this help\n");
 }
 
+int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect)
+{
+	int i, j, k;
+	int count = 0;
+
+	for(i=0; i<nbrsect; i++) {
+		for(j=0; j < sizeof(keys)/sizeof(keys[0]); j++) {
+			if(myKM[i].keyA == NULL) {
+				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keys[j], MFC_KEY_A) == OPERATION_OK) {
+					//printf("sector %02d auth with key A[%d]=%02x%02x%02x%02x%02x%02x\n", i, j, keys[j][0],keys[j][1],keys[j][2],keys[j][3],keys[j][4],keys[j][5]);
+					myKM[i].keyA = &keys[j];
+					count++;
+					for(k=mifare_classic_sector_first_block(i); k < mifare_classic_sector_last_block(i); k++) {
+						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
+							myKM[i].readA |= (1 << (k-mifare_classic_sector_first_block(i)));
+						}
+						// is keyB readable ? If so, keyB cannot be used for auth
+						if(!mifare_classic_get_trailer_block_permission(tags[0], mifare_classic_sector_last_block(i), MCAB_READ_KEYB, MFC_KEY_A)) {
+							if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_B)) {
+								myKM[i].readB |= (1 << (k-mifare_classic_sector_first_block(i)));
+							}
+						}
+					}
+				}
+				mifare_classic_disconnect(tags[0]);
+			}
+
+			if(myKM[i].keyB == NULL) {
+				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keys[j], MFC_KEY_B) == OPERATION_OK) {
+					//printf("sector %02d auth with key B[%d]=%02x%02x%02x%02x%02x%02x\n", i, j, keys[j][0],keys[j][1],keys[j][2],keys[j][3],keys[j][4],keys[j][5]);
+					myKM[i].keyB = &keys[j];
+					count++;
+					//if(mifare_classic_get_data_block_permission(tags[0], mifare_classic_sector_first_block(i), MCAB_R, MFC_KEY_A)) printf("A");
+					//if(mifare_classic_get_data_block_permission(tags[0], mifare_classic_sector_first_block(i), MCAB_R, MFC_KEY_B)) printf("B");
+				}
+				mifare_classic_disconnect(tags[0]);
+			}
+			if(myKM[i].keyA && myKM[i].keyB) break;
+		}
+		printf("Mapping: %d/%d\r", i, nbrsect);
+		fflush(stdout);
+	}
+
+	if(count != nbrsect*2)
+		return(-1);
+
+	return(0);
+}
+
+void printmapping(struct keymap *myKM, int nbrsect)
+{
+	// struct keymap myKM[40]
+	int countkeys = 0;
+	int i;
+
+	printf("        key A         key B         ReadA    ReadB\n");
+	for(i=0; i<nbrsect; i++) {
+		MifareClassicKey *tmpkeyA = myKM[i].keyA;
+		MifareClassicKey *tmpkeyB = myKM[i].keyB;
+
+		printf("%02d:  ", i);
+		if(tmpkeyA != NULL)
+			printf("%02x%02x%02x%02x%02x%02x", (*tmpkeyA)[0],(*tmpkeyA)[1],(*tmpkeyA)[2],(*tmpkeyA)[3],(*tmpkeyA)[4],(*tmpkeyA)[5]);
+		else
+			printf("------------");
+		if(tmpkeyB != NULL)
+			printf("  %02x%02x%02x%02x%02x%02x", (*tmpkeyB)[0],(*tmpkeyB)[1],(*tmpkeyB)[2],(*tmpkeyB)[3],(*tmpkeyB)[4],(*tmpkeyB)[5]);
+		else
+			printf("  ------------");
+		printf("     %04X", myKM[i].readA);
+		printf("     %04X", myKM[i].readB);
+		printf("\n");
+	}
+
+	for(i=0; i<nbrsect; i++) {
+		countkeys += myKM[i].keyA == NULL ? 0 : 1;
+		countkeys += myKM[i].keyB == NULL ? 0 : 1;
+	}
+	if(countkeys == nbrsect*2)
+		printf("Found all keys (%d)\n", countkeys);
+	else
+		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
+}
+
 int main(int argc, char** argv)
 {
 	nfc_context *context;
 	nfc_device *pnd = NULL;
 	MifareTag *tags = NULL;
 
-	int i, j, k;
 	int nbrsect;
 
 	int retopt;
@@ -198,8 +284,7 @@ int main(int argc, char** argv)
 	regex_t regex;
 
 	// we don't store keys, but pointers to key in keyslist
-	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
-	int countkeys = 0;
+	struct keymap myKM[40] = {{ 42, NULL, NULL, 0, 0, 0, 0 }};
 
 	while ((retopt = getopt(argc, argv, "r:w:c:uvyh")) != -1) {
 		switch (retopt) {
@@ -297,73 +382,10 @@ int main(int argc, char** argv)
 
 	//mfuid = strtol(freefare_get_tag_uid(tags[0]), NULL, 16) & 0xffffffff;
 
-	for(i=0; i<nbrsect; i++) {
-		for(j=0; j < sizeof(keys)/sizeof(keys[0]); j++) {
+	if(maptag(tags, myKM, nbrsect) != 0)
+		printf("Warning: missing keys !\n");
 
-			if(myKM[i].keyA == NULL) {
-				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
-						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keys[j], MFC_KEY_A) == OPERATION_OK) {
-					//printf("sector %02d auth with key A[%d]=%02x%02x%02x%02x%02x%02x\n", i, j, keys[j][0],keys[j][1],keys[j][2],keys[j][3],keys[j][4],keys[j][5]);
-					myKM[i].keyA = &keys[j];
-					for(k=mifare_classic_sector_first_block(i); k < mifare_classic_sector_last_block(i); k++) {
-						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
-							myKM[i].readA |= (1 << (k-mifare_classic_sector_first_block(i)));
-						}
-						// is keyB readable ?
-						if(!mifare_classic_get_trailer_block_permission(tags[0], mifare_classic_sector_last_block(i), MCAB_READ_KEYB, MFC_KEY_A)) {
-							if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_B)) {
-								myKM[i].readB |= (1 << (k-mifare_classic_sector_first_block(i)));
-							}
-						}
-					}
-				}
-				mifare_classic_disconnect(tags[0]);
-			}
-
-			if(myKM[i].keyB == NULL) {
-				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
-						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keys[j], MFC_KEY_B) == OPERATION_OK) {
-					//printf("sector %02d auth with key B[%d]=%02x%02x%02x%02x%02x%02x\n", i, j, keys[j][0],keys[j][1],keys[j][2],keys[j][3],keys[j][4],keys[j][5]);
-					myKM[i].keyB = &keys[j];
-					//if(mifare_classic_get_data_block_permission(tags[0], mifare_classic_sector_first_block(i), MCAB_R, MFC_KEY_A)) printf("A");
-					//if(mifare_classic_get_data_block_permission(tags[0], mifare_classic_sector_first_block(i), MCAB_R, MFC_KEY_B)) printf("B");
-				}
-				mifare_classic_disconnect(tags[0]);
-			}
-			if(myKM[i].keyA && myKM[i].keyB) break;
-		}
-		printf("Mapping: %d/%d\r", i, nbrsect);
-		fflush(stdout);
-	}
-
-	printf("        key A         key B\n");
-	for(i=0; i<nbrsect; i++) {
-		MifareClassicKey *tmpkeyA = myKM[i].keyA;
-		MifareClassicKey *tmpkeyB = myKM[i].keyB;
-
-		printf("%02d:  ", i);
-		if(tmpkeyA != NULL)
-			printf("%02x%02x%02x%02x%02x%02x", (*tmpkeyA)[0],(*tmpkeyA)[1],(*tmpkeyA)[2],(*tmpkeyA)[3],(*tmpkeyA)[4],(*tmpkeyA)[5]);
-		else
-			printf("------------");
-		if(tmpkeyB != NULL)
-			printf("  %02x%02x%02x%02x%02x%02x", (*tmpkeyB)[0],(*tmpkeyB)[1],(*tmpkeyB)[2],(*tmpkeyB)[3],(*tmpkeyB)[4],(*tmpkeyB)[5]);
-		else
-			printf("  ------------");
-		printf("     %04X", myKM[i].readA);
-		printf("     %04X", myKM[i].readB);
-		printf("\n");
-	}
-
-	for(i=0; i<nbrsect; i++) {
-		countkeys += myKM[i].keyA == NULL ? 0 : 1;
-		countkeys += myKM[i].keyB == NULL ? 0 : 1;
-	}
-	if(countkeys == nbrsect*2)
-		printf("Found all keys (%d)\n", countkeys);
-	else
-		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
-
+	printmapping(myKM, nbrsect);
 
 	freefare_free_tags(tags);
 	// Close NFC device
