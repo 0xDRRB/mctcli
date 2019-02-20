@@ -46,7 +46,7 @@ MifareClassicKey keys[] = {
 	{ 0x00,0x00,0x00,0x00,0x00,0x00 },
 	{ 0xd3,0xf7,0xd3,0xf7,0xd3,0xf7 },
 	{ 0xaa,0xbb,0xcc,0xdd,0xee,0xff },
-	{ 0x41,0x5a,0x54,0x45,0x4b,0x4d },  // self-service laundry
+//	{ 0x41,0x5a,0x54,0x45,0x4b,0x4d },  // self-service laundry
 };
 
 struct keymap {
@@ -189,7 +189,7 @@ int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 					//printf("sector %02d auth with key A[%d]=%02x%02x%02x%02x%02x%02x\n", i, j, keys[j][0],keys[j][1],keys[j][2],keys[j][3],keys[j][4],keys[j][5]);
 					myKM[i].keyA = &keys[j];
 					count++;
-					for(k=mifare_classic_sector_first_block(i); k < mifare_classic_sector_last_block(i); k++) {
+					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
 							myKM[i].readA |= (1 << (k-mifare_classic_sector_first_block(i)));
 						}
@@ -260,6 +260,131 @@ void printmapping(struct keymap *myKM, int nbrsect)
 		printf("Found all keys (%d)\n", countkeys);
 	else
 		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
+}
+
+int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
+{
+	int i, k;
+	int a, b;
+	MifareClassicBlock data;
+	MifareClassicKey *tmpkeyA;
+	MifareClassicKey *tmpkeyB;
+
+	for(i=0; i<nbrsect; i++) {
+		tmpkeyA = myKM[i].keyA;
+		tmpkeyB = myKM[i].keyB;
+		a = 0; b = 0;
+		printf("%02d:  ", i);
+		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+			if(myKM[i].readB & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyB != NULL) {
+				printf("B");
+				b++;
+			} else if(myKM[i].readA & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyA != NULL){
+				printf("A");
+				a++;
+			} else {
+				printf("-");
+			}
+		}
+		if(b == mifare_classic_sector_block_count(i)) {
+			if(tmpkeyB != NULL) {
+				// read all sector with B key
+				printf("    All B  ");
+				if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
+						(mifare_classic_authenticate(tags[0],
+													 mifare_classic_sector_last_block(i),
+													 *tmpkeyB,
+													 MFC_KEY_B) == OPERATION_OK)) {
+					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+							printf("o");
+						} else {
+							printf(".");
+						}
+					}
+					mifare_classic_disconnect(tags[0]);
+				} else {
+					// FIXME: handle error
+					fprintf(stderr, "Auth error !\n");
+					mifare_classic_disconnect(tags[0]);
+				}
+			} else {
+				// FIXME : fill with "-", unreadable sector
+			}
+		} else if(a == mifare_classic_sector_block_count(i)) {
+			if(tmpkeyA != NULL) {
+				// read all sector with A key
+				printf("    All A  ");
+				if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
+						(mifare_classic_authenticate(tags[0],
+													 mifare_classic_sector_last_block(i),
+													 *tmpkeyA,
+													 MFC_KEY_A) == OPERATION_OK)) {
+					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+							printf("o");
+						} else {
+							printf(".");
+						}
+					}
+					mifare_classic_disconnect(tags[0]);
+				} else {
+					// FIXME: handle error
+					fprintf(stderr, "Auth error !\n");
+					mifare_classic_disconnect(tags[0]);
+				}
+			} else {
+				// FIXME : fill with "-", unreadable sector
+			}
+		} else {
+			// read sector block by block, check if we have keys
+			printf("    mix A/B  ");
+			for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+				if(myKM[i].readB & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyB != NULL) {
+					if(tmpkeyB != NULL) {
+						if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
+								(mifare_classic_authenticate(tags[0],
+															 k,
+															 *tmpkeyB,
+															 MFC_KEY_B) == OPERATION_OK)) {
+							if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+								printf("o");
+							} else {
+								printf(".");
+							}
+							mifare_classic_disconnect(tags[0]);
+						} else {
+							fprintf(stderr, "Auth error !\n");
+							mifare_classic_disconnect(tags[0]);
+						}
+					}
+				} else if(myKM[i].readA & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyA != NULL){
+					if(tmpkeyA != NULL) {
+						if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
+								(mifare_classic_authenticate(tags[0],
+															 k,
+															 *tmpkeyA,
+															 MFC_KEY_A) == OPERATION_OK)) {
+							if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
+								printf("o");
+							} else {
+								printf(".");
+							}
+							mifare_classic_disconnect(tags[0]);
+						} else {
+							fprintf(stderr, "Auth error !\n");
+							mifare_classic_disconnect(tags[0]);
+						}
+					}
+				} else {
+					// FIXME key missing for this block
+					printf(".");
+				}
+			}
+		}
+		printf("\n");
+	}
+	return(0);
 }
 
 int main(int argc, char** argv)
@@ -386,6 +511,8 @@ int main(int argc, char** argv)
 		printf("Warning: missing keys !\n");
 
 	printmapping(myKM, nbrsect);
+
+	readtag(tags, myKM, nbrsect);
 
 	freefare_free_tags(tags);
 	// Close NFC device
