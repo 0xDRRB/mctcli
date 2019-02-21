@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <string.h>
 #include <regex.h>
+#include <signal.h>
 #include <nfc/nfc.h>
 #include <freefare.h>
 
@@ -49,8 +50,10 @@ MifareClassicKey keys[] = {
 	{ 0x41,0x5a,0x54,0x45,0x4b,0x4d },  // self-service laundry
 };
 
+nfc_context *context;
+nfc_device *pnd = NULL;
+
 struct keymap {
-	int prout;
 	MifareClassicKey *keyA;
 	MifareClassicKey *keyB;
 	uint16_t readA;
@@ -62,6 +65,18 @@ struct keymap {
 int bcd2bin(uint8_t val) {
 	return( (((val & 0xf0) >> 4)*10) + (val & 0x0f) );
 }
+
+static void sighandler(int sig)
+{
+	printf("Caught signal %d\n", sig);
+	if (pnd != NULL) {
+		nfc_abort_command(pnd);
+		nfc_close(pnd);
+	}
+	nfc_exit(context);
+	exit(EXIT_FAILURE);
+}
+
 
 // read data from tag
 int readlavtag(MifareTag *tags, uint8_t *dest, int verb)
@@ -337,12 +352,9 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 	return(0);
 }
 
-// FIXME : catch CTRL+C and quit clean
-
 int main(int argc, char** argv)
 {
-	nfc_context *context;
-	nfc_device *pnd = NULL;
+
 	MifareTag *tags = NULL;
 
 	int nbrsect;
@@ -361,7 +373,7 @@ int main(int argc, char** argv)
 	regex_t regex;
 
 	// we don't store keys, but pointers to key in keyslist
-	struct keymap myKM[40] = {{ 42, NULL, NULL, 0, 0, 0, 0 }};
+	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
 	while ((retopt = getopt(argc, argv, "r:w:c:uvyh")) != -1) {
 		switch (retopt) {
@@ -414,6 +426,14 @@ int main(int argc, char** argv)
 		}
 	}
 
+	if(signal(SIGINT, &sighandler) == SIG_ERR) {
+		printf("Can't catch SIGINT\n");
+		return(EXIT_FAILURE);
+	}
+	if(signal(SIGTERM, &sighandler) == SIG_ERR) {
+		printf("Can't catch SIGTERM\n");
+		return(EXIT_FAILURE);
+	}
 
 	// Initialize libnfc and set the nfc_context
 	nfc_init(&context);
