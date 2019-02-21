@@ -232,9 +232,10 @@ int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 			}
 			if(myKM[i].keyA && myKM[i].keyB) break;
 		}
-		printf("Mapping: %d/%d\r", i, nbrsect);
+		printf("Mapping: %d/%d\r", i+1, nbrsect);
 		fflush(stdout);
 	}
+	printf("\n");
 
 	if(count != nbrsect*2)
 		return(-1);
@@ -284,7 +285,7 @@ void printblock(MifareClassicBlock *data)
 	printf("\n");
 }
 
-int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
+int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, char *dest)
 {
 	int i, k;
 	MifareClassicKey *tmpkeyA;
@@ -294,7 +295,6 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 	for(i=0; i<nbrsect; i++) {
 		tmpkeyA = myKM[i].keyA;
 		tmpkeyB = myKM[i].keyB;
-		printf("+Sector %d:\n", i);
 		// read sector block by block, check if we have keys
 		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 			if(myKM[i].readB & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyB != NULL) {
@@ -305,12 +305,12 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 														 *tmpkeyB,
 														 MFC_KEY_B) == OPERATION_OK)) {
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
-							// FIXME: copy the key in dump
+							// copy the key in dump
 							if(k == mifare_classic_sector_last_block(i)) {
 								memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
 								memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
 							}
-							printblock(&data);
+							//memcpy(dest+(16*k), data, 16);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
 						}
@@ -328,12 +328,12 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 														 *tmpkeyA,
 														 MFC_KEY_A) == OPERATION_OK)) {
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
-							// FIXME: copy the key in dump
+							// copy the key in dump
 							if(k == mifare_classic_sector_last_block(i)) {
 								memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
 								memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
 							}
-							printblock(&data);
+							//memcpy(dest+(16*k), data, 16);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
 						}
@@ -345,10 +345,37 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect)
 				}
 			} else {
 				// FIXME key missing for this block
-				printf("-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --\n");
+				// printf("-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --\n");
 			}
 		}
+		printf("Reading: %d/%d\r", i+1, nbrsect);
+        fflush(stdout);
 	}
+	printf("\n");
+	return(0);
+}
+
+int printmfdata(int nbrsect, char *src)
+{
+	int i, j, k;
+	for(i=0; i<nbrsect; i++) {
+		printf("+Sector: %d\n", i);
+		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+			for(j=0; j<16; j++)
+				printf("%02X", src[(k*16)+j]); //*(src+(i*16)+j)
+				//printf("%02X", *(src+(k*16)+j));
+			printf("\n");
+		}
+	}
+	/*
+	for(j=0; j<16; j++)
+		printf("%02X ", src[(0*16)+j]); //*(src+(i*16)+j)
+	printf("\n");
+	for(j=0; j<16; j++)
+		printf("%02X ", *(src+(k*16)+j)); // BAD
+	printf("\n");
+	*/
+
 	return(0);
 }
 
@@ -356,8 +383,10 @@ int main(int argc, char** argv)
 {
 
 	MifareTag *tags = NULL;
+	char *mfdata = NULL;
 
 	int nbrsect;
+	int mfdatasize;
 
 	int retopt;
 	int opt = 0;
@@ -465,10 +494,12 @@ int main(int argc, char** argv)
 		case CLASSIC_1K:
 			printf("%u : Mifare 1k (S50) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 16;  // 16 sectors * 4 bloks
+			mfdatasize = 16*4*16;
 			break;
 		case CLASSIC_4K:
 			printf("%u : Mifare 4k (S70) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 40;  // 32 sectors * 4 blocks + 8 sector * 16 blocks
+			mfdatasize = (16*4*32)+(16*8*16);
 			break;
 		default:
 			fprintf(stderr, "no Mifare 1k (S50) or 4k (S70) tag found !\n");
@@ -477,14 +508,24 @@ int main(int argc, char** argv)
 			exit(EXIT_FAILURE);
 	}
 
-	//mfuid = strtol(freefare_get_tag_uid(tags[0]), NULL, 16) & 0xffffffff;
+	if((mfdata = malloc(mfdatasize * sizeof(char))) == NULL) {
+		fprintf(stderr, "malloc list error: %s\n", strerror(errno));
+		nfc_close(pnd);
+		nfc_exit(context);
+		exit(EXIT_FAILURE);
+	}
+	bzero(mfdata, mfdatasize);
 
 	if(maptag(tags, myKM, nbrsect) != 0)
 		printf("Warning: missing keys !\n");
 
 	printmapping(myKM, nbrsect);
 
-	readtag(tags, myKM, nbrsect);
+	readtag(tags, myKM, nbrsect, mfdata);
+
+	printmfdata(nbrsect, mfdata);
+
+	free(mfdata);
 
 	freefare_free_tags(tags);
 	// Close NFC device
