@@ -50,6 +50,8 @@ MifareClassicKey keys[] = {
 	{ 0x41,0x5a,0x54,0x45,0x4b,0x4d },  // self-service laundry
 };
 
+MifareClassicKey *keylist;
+
 nfc_context *context;
 nfc_device *pnd = NULL;
 
@@ -77,106 +79,6 @@ static void sighandler(int sig)
 	exit(EXIT_FAILURE);
 }
 
-
-// read data from tag
-int readlavtag(MifareTag *tags, uint8_t *dest, int verb)
-{
-	int i,k;
-	MifareClassicBlock data;
-
-	for(i=START_SECTOR; i<(START_SECTOR+NBR_SECTOR); i++) {
-		if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
-					(mifare_classic_authenticate(tags[0],
-												 mifare_classic_sector_last_block(i),
-												 keys[0],
-												 MFC_KEY_B) == OPERATION_OK)) {
-			for(k=mifare_classic_sector_first_block(i); k<mifare_classic_sector_last_block(i); k++) {
-				if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
-					if(verb)
-						printf("read sector %d block %d\n", i, k);
-					memcpy(dest+(16*(k%4)+48*(i-START_SECTOR)), data, 16);
-				} else {
-					fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
-					return(1);
-				}
-			}
-			mifare_classic_disconnect(tags[0]);
-		} else {
-			fprintf(stderr, "Auth error ! Abord ! Abord ! Abord !\n");
-			mifare_classic_disconnect(tags[0]);
-			return(1);
-		}
-	}
-	return(0);
-}
-
-// copy data to tag
-int writelavtag(MifareTag *tags, uint8_t *src, int verb)
-{
-	int i,k;
-	MifareClassicBlock data;
-
-	for(i=START_SECTOR; i<(START_SECTOR+NBR_SECTOR); i++) {
-		if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
-					(mifare_classic_authenticate(tags[0],
-												 mifare_classic_sector_last_block(i),
-												 keys[0],
-												 MFC_KEY_B) == OPERATION_OK)) {
-			for(k=mifare_classic_sector_first_block(i); k<mifare_classic_sector_last_block(i); k++) {
-				memcpy(data, src+(16*(k%4)+48*(i-START_SECTOR)), 16);
-				if(mifare_classic_write(tags[0], k, data) == OPERATION_OK) {
-					if(verb)
-						printf("write sector %d block %d\n", i, k);
-				} else {
-					fprintf(stderr, "write error: %s\n", freefare_strerror(tags[0]));
-					return(1);
-				}
-			}
-			mifare_classic_disconnect(tags[0]);
-		} else {
-			fprintf(stderr, "Auth error ! Abord ! Abord ! Abord !\n");
-			mifare_classic_disconnect(tags[0]);
-			return(1);
-		}
-	}
-	return(0);
-}
-
-// read array and fill file
-int writefile(const char *filename, uint8_t *src, int num)
-{
-	FILE *fp;
-
-	fp = fopen(filename, "wb");
-	if (fp == NULL) {
-		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return(1);
-	}
-	if(fwrite(src, sizeof(uint8_t), num, fp) != num) {
-		fprintf(stderr, "Error writing file: %s\n", strerror(errno));
-		return(1);
-	}
-
-	return(0);
-}
-
-// read file and fill array
-int readfile(const char *filename, uint8_t *dest, int num)
-{
-	FILE *fp;
-
-	fp = fopen(filename, "rb");
-	if (fp == NULL) {
-		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return(1);
-	}
-	if(fread(dest, sizeof(uint8_t), num, fp) != num) {
-		fprintf(stderr, "Error reading file: %s\n", strerror(errno));
-		return(1);
-	}
-	return(0);
-}
-
 void printhelp(char *binname)
 {
 	printf("RFID Mifare Laundry card reader/writer v0.0.1\n");
@@ -192,7 +94,7 @@ void printhelp(char *binname)
 }
 
 int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect)
-{
+{	// FIXME: use loaded defaults keys
 	int i, j, k;
 	int count = 0;
 
@@ -272,13 +174,6 @@ void printmapping(struct keymap *myKM, int nbrsect)
 		printf("Found all keys (%d)\n", countkeys);
 	else
 		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
-}
-
-void printblock(MifareClassicBlock *data)
-{
-	for(int i=0; i<16; i++)
-		printf("%02X", (*data)[i]);
-	printf("\n");
 }
 
 int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
@@ -378,6 +273,35 @@ int printmfdata(int nbrsect, unsigned char *src)
 			printf(RESET "\n");
 		}
 	}
+	return(0);
+}
+
+int loadkeys(const char *filename)
+{
+	FILE *fp;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	MifareClassicKey tmpkey;
+
+	fp = fopen(filename, "rt");
+	if (fp == NULL) {
+		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
+		return(-1);
+	}
+
+	while ((read = getline(&line, &len, fp)) != -1) {
+		printf("Retrieved line of length %zu:", read);
+		printf("%s", line);
+		if(sscanf(line, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6)
+			printf("Ok\n");
+	}
+
+	fclose(fp);
+	if(line)
+		free(line);
+
 	return(0);
 }
 
@@ -518,6 +442,7 @@ int main(int argc, char** argv)
 	}
 	bzero(mfdata, nbrblck*16);
 
+	/*
 	if(maptag(tags, myKM, nbrsect) != 0)
 		printf("Warning: missing keys !\n");
 
@@ -527,8 +452,11 @@ int main(int argc, char** argv)
 		printf("Warning: missing blocks !\n");
 
 	printmfdata(nbrsect, mfdata);
+	*/
 
 	free(mfdata);
+
+	loadkeys("keys.txt");
 
 	freefare_free_tags(tags);
 	// Close NFC device
