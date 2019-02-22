@@ -281,17 +281,14 @@ void printblock(MifareClassicBlock *data)
 	printf("\n");
 }
 
-char plop[1024] = { 0 };
-
-int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, char *dest)
+int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
 {
-	int i, k, j;
+	int i, k;
+	int count = 0;
+	int ret = 0;
 	MifareClassicKey *tmpkeyA;
 	MifareClassicKey *tmpkeyB;
 	MifareClassicBlock data;
-
-	// typedef unsigned char MifareClassicBlock[16];
-	unsigned char toto[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
 
 	for(i=0; i<nbrsect; i++) {
 		tmpkeyA = myKM[i].keyA;
@@ -308,31 +305,21 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, char *dest)
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
 							// copy the key in dump
 							if(k == mifare_classic_sector_last_block(i)) {
-							//	memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
-							//	memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
+								if(tmpkeyA != NULL)
+									memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
+								if(tmpkeyB != NULL)
+									memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
 							}
-							for(j=0; j<16; j++) {
-								//dest[16*k+j] = data[j];
-								//toto[j] = data[j];
-								plop[16*k+j] = data[j];
-								// printf("%02X", dest[16*k+j]);
-								//if(dest[16*k+j]==data[j]) printf(".");
-								//if(toto[j]==data[j]) printf(".");
-								if(plop[16*k+j]==data[j]) printf(".");
-								else printf("x");
-							}
-							printf("\n");
-							// for(j=0; j<16; j++) dest[16*k+j] = toto[j];
-							//memcpy(dest+(16*k), &data, 16);
-							//memcpy(dest+(16*k), &toto, 16);
-							//printblock(&data);
+							memcpy(dest+(16*k), &data, 16);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
+							ret++;
 						}
 						mifare_classic_disconnect(tags[0]);
 					} else {
 						fprintf(stderr, "Auth error !\n");
 						mifare_classic_disconnect(tags[0]);
+						ret++;
 					}
 				}
 			} else if(myKM[i].readA & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyA != NULL){
@@ -345,57 +332,46 @@ int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, char *dest)
 						if(mifare_classic_read(tags[0], k, &data) == OPERATION_OK) {
 							// copy the key in dump
 							if(k == mifare_classic_sector_last_block(i)) {
-							//	memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
-							//	memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
+								if(tmpkeyA != NULL)
+									memcpy(&data[0], tmpkeyA, sizeof(MifareClassicKey));
+								if(tmpkeyB != NULL)
+									memcpy(&data[10], tmpkeyB, sizeof(MifareClassicKey));
 							}
-							// for(j=0; j<16; j++) dest[16*k+j] = data[j];
-							// memcpy(dest+(16*k), &data, 16);
-							//memcpy(dest+(16*k), &toto, 16);
-							//printblock(&data);
+							memcpy(dest+(16*k), &data, 16);
 						} else {
 							fprintf(stderr, "read error: %s\n", freefare_strerror(tags[0]));
+							ret++;
 						}
 						mifare_classic_disconnect(tags[0]);
 					} else {
 						fprintf(stderr, "Auth error !\n");
 						mifare_classic_disconnect(tags[0]);
+						ret++;
 					}
 				}
 			} else {
-				// FIXME key missing for this block
-				// printf("-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --\n");
+				// key missing for this block
+				ret++;
 			}
+			printf("Reading: %d/%d\r", k+1, nbrblck);
+			fflush(stdout);
 		}
-		printf("Reading: %d/%d\r", i+1, nbrsect);
-        fflush(stdout);
 	}
 	printf("\n");
-	return(0);
+	return(ret);
 }
 
-int printmfdata(int nbrsect, char *src)
+int printmfdata(int nbrsect, unsigned char *src)
 {
 	int i, j, k;
 	for(i=0; i<nbrsect; i++) {
 		printf("+Sector: %d\n", i);
 		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 			for(j=0; j<16; j++)
-				//printf("%02X", src[(k*16)+j]);
-				//printf("%02X", *(src+(k*16)+j));
-				//printf("%02X", (*src)[(k*16)+j]);
 				printf("%02X", src[(k*16)+j]);
 			printf("\n");
 		}
 	}
-	/*
-	for(j=0; j<16; j++)
-		printf("%02X ", src[(0*16)+j]); // *(src+(i*16)+j)
-	printf("\n");
-	for(j=0; j<16; j++)
-		printf("%02X ", *(src+(k*16)+j)); // BAD
-	printf("\n");
-	*/
-
 	return(0);
 }
 
@@ -403,10 +379,10 @@ int main(int argc, char** argv)
 {
 
 	MifareTag *tags = NULL;
-	char *mfdata = NULL;
+	unsigned char *mfdata = NULL;
 
 	int nbrsect;
-	int mfdatasize;
+	int nbrblck;
 
 	int retopt;
 	int opt = 0;
@@ -514,12 +490,12 @@ int main(int argc, char** argv)
 		case CLASSIC_1K:
 			printf("%u : Mifare 1k (S50) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 16;  // 16 sectors * 4 bloks
-			mfdatasize = 16*4*16;
+			nbrblck= 4*16;
 			break;
 		case CLASSIC_4K:
 			printf("%u : Mifare 4k (S70) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 40;  // 32 sectors * 4 blocks + 8 sector * 16 blocks
-			mfdatasize = (16*4*32)+(16*8*16);
+			nbrblck = (4*32)+(8*16);
 			break;
 		default:
 			fprintf(stderr, "no Mifare 1k (S50) or 4k (S70) tag found !\n");
@@ -528,31 +504,23 @@ int main(int argc, char** argv)
 			exit(EXIT_FAILURE);
 	}
 
-	if((mfdata = (char *)malloc(mfdatasize * sizeof(char))) == NULL) {
+	if((mfdata = (unsigned char *)malloc(nbrblck*16 * sizeof(unsigned char))) == NULL) {
 		fprintf(stderr, "malloc list error: %s\n", strerror(errno));
 		nfc_close(pnd);
 		nfc_exit(context);
 		exit(EXIT_FAILURE);
 	}
-	bzero(mfdata, mfdatasize);
+	bzero(mfdata, nbrblck*16);
 
 	if(maptag(tags, myKM, nbrsect) != 0)
 		printf("Warning: missing keys !\n");
 
 	printmapping(myKM, nbrsect);
 
-	readtag(tags, myKM, nbrsect, mfdata);
+	if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
+		printf("Warning: missing blocks !\n");
 
-//	char toto[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}; memcpy(mfdata+16, &toto, 16);
-
-//	printmfdata(nbrsect, mfdata);
-
-	/*
-	for(int z=0; z<mfdatasize; z++) {
-		printf("%02X", mfdata[z]);
-		if((z+1)%16 == 0) printf("\n");
-	}
-	*/
+	printmfdata(nbrsect, mfdata);
 
 	free(mfdata);
 
