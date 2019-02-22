@@ -284,7 +284,6 @@ void printblock(MifareClassicBlock *data)
 int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
 {
 	int i, k;
-	int count = 0;
 	int ret = 0;
 	MifareClassicKey *tmpkeyA;
 	MifareClassicKey *tmpkeyB;
@@ -367,9 +366,16 @@ int printmfdata(int nbrsect, unsigned char *src)
 	for(i=0; i<nbrsect; i++) {
 		printf("+Sector: %d\n", i);
 		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
-			for(j=0; j<16; j++)
+			if(k==0) printf(MAGENTA);
+			for(j=0; j<16; j++) {
+				if(k==mifare_classic_sector_last_block(i)) {
+					if(j==0) printf(BOLDGREEN);
+					if(j==6) printf(YELLOW);
+					if(j==10) printf(GREEN);
+				}
 				printf("%02X", src[(k*16)+j]);
-			printf("\n");
+			}
+			printf(RESET "\n");
 		}
 	}
 	return(0);
