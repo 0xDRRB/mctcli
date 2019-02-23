@@ -50,8 +50,6 @@ MifareClassicKey keys[] = {
 	{ 0x41,0x5a,0x54,0x45,0x4b,0x4d },  // self-service laundry
 };
 
-MifareClassicKey *keylist;
-
 nfc_context *context;
 nfc_device *pnd = NULL;
 
@@ -276,33 +274,68 @@ int printmfdata(int nbrsect, unsigned char *src)
 	return(0);
 }
 
+MifareClassicKey *keylist = NULL;
+
 int loadkeys(const char *filename)
 {
 	FILE *fp;
-	char *line = NULL;
+	char *strline = NULL;
+	int line = 0;
 	size_t len = 0;
 	ssize_t read;
+	int count = 0;
+
+	// MifareClassicKey *keylist
 
 	MifareClassicKey tmpkey;
 
 	fp = fopen(filename, "rt");
 	if (fp == NULL) {
 		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return(-1);
+		return(0);
 	}
 
-	while ((read = getline(&line, &len, fp)) != -1) {
-		printf("Retrieved line of length %zu:", read);
-		printf("%s", line);
-		if(sscanf(line, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6)
-			printf("Ok\n");
+	// FIXME: ignore empty lines
+	// FIXME: add comment with #
+	while ((read = getline(&strline, &len, fp)) != -1) {
+		line++;
+		//printf("Retrieved line of length %zu: %s", read, strline);
+		if(sscanf(strline, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6) {
+//			printf("import key %d from line %d: %02X %02X %02X %02X %02X %02X\n", count, line, tmpkey[0], tmpkey[1], tmpkey[2], tmpkey[3], tmpkey[4], tmpkey[5]);
+			if((keylist=(MifareClassicKey *)realloc(keylist, (count+1)*sizeof(MifareClassicKey))) == NULL) {
+				fprintf(stderr, "malloc list error: %s\n", strerror(errno));
+			}
+//			(*keylist)[count] = (MifareClassicKey *)malloc(sizeof(MifareClassicKey));
+//			printf("%p %p\n", keylist, (*keylist)[count]);
+			/*
+			keylist[count][0] = tmpkey[0];
+			keylist[count][1] = tmpkey[1];
+			keylist[count][2] = tmpkey[2];
+			keylist[count][3] = tmpkey[3];
+			keylist[count][4] = tmpkey[4];
+			keylist[count][5] = tmpkey[5];
+			*/
+			memcpy(keylist[count], &tmpkey, sizeof(MifareClassicKey));
+			printf("Key %d: %02X %02X %02X %02X %02X %02X\n", count, keylist[count][0], keylist[count][1], keylist[count][2], keylist[count][3], keylist[count][4], keylist[count][5]);
+//			printf("%02X\n", keylist[count][0]);
+			count++;
+		} else {
+			fprintf(stderr, "Bad line syntax at line %d\n", line);
+		}
 	}
 
 	fclose(fp);
-	if(line)
-		free(line);
+	if(strline)
+		free(strline);
 
-	return(0);
+	return(count);
+}
+
+void printkey(MifareClassicKey *keylist, int num)
+{
+	for(int i=0; i<num; i++) {
+		printf("Key %d: %02X %02X %02X %02X %02X %02X\n", i, keylist[i][0], keylist[i][1], keylist[i][2], keylist[i][3], keylist[i][4], keylist[i][5]);
+	}
 }
 
 int main(int argc, char** argv)
@@ -456,7 +489,11 @@ int main(int argc, char** argv)
 
 	free(mfdata);
 
-	loadkeys("keys.txt");
+	int gna = loadkeys("keys.txt");
+	printf("=====================\n");
+	printkey(keylist, gna);
+	printf("=====================\n");
+	printkey(keys, gna);
 
 	freefare_free_tags(tags);
 	// Close NFC device
