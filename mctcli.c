@@ -271,8 +271,6 @@ int loadkeys(const char *filename)
 	ssize_t read;
 	int count = 0;
 
-	// MifareClassicKey *keylist
-
 	MifareClassicKey tmpkey;
 
 	fp = fopen(filename, "rt");
@@ -281,10 +279,8 @@ int loadkeys(const char *filename)
 		return(0);
 	}
 
-	// FIXME: ignore empty lines
-	// FIXME: add comment with #
 	while ((read = getline(&strline, &len, fp)) != -1) {
-		line++;
+		if(strline[0] == '#' || strline[0] == '\n') continue;
 		if(sscanf(strline, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6) {
 //			printf("import key %d from line %d: %02X %02X %02X %02X %02X %02X\n", count, line, tmpkey[0], tmpkey[1], tmpkey[2], tmpkey[3], tmpkey[4], tmpkey[5]);
 			if((keylist=(MifareClassicKey *)realloc(keylist, (count+1)*sizeof(MifareClassicKey))) == NULL) {
@@ -296,6 +292,7 @@ int loadkeys(const char *filename)
 		} else {
 			fprintf(stderr, "Bad line syntax at line %d\n", line);
 		}
+		line++;
 	}
 
 	fclose(fp);
@@ -391,13 +388,20 @@ int main(int argc, char** argv)
 	}
 
 	if(signal(SIGINT, &sighandler) == SIG_ERR) {
-		printf("Can't catch SIGINT\n");
+		fprintf(stderr, "Can't catch SIGINT\n");
 		return(EXIT_FAILURE);
 	}
 	if(signal(SIGTERM, &sighandler) == SIG_ERR) {
-		printf("Can't catch SIGTERM\n");
+		fprintf(stderr, "Can't catch SIGTERM\n");
 		return(EXIT_FAILURE);
 	}
+
+	// FIXME: make this an option
+	if((nbrkeys = loadkeys("keys.txt")) < 1) {
+		fprintf(stderr, "No key to use. Exiting.\n");
+		exit(EXIT_FAILURE);
+	}
+	printkey(nbrkeys);
 
 	// Initialize libnfc and set the nfc_context
 	nfc_init(&context);
@@ -450,10 +454,6 @@ int main(int argc, char** argv)
 		exit(EXIT_FAILURE);
 	}
 	bzero(mfdata, nbrblck*16);
-
-	// FIXME: make this an option
-	nbrkeys = loadkeys("keys.txt");
-	printkey(nbrkeys);
 
 	if(maptag(tags, myKM, nbrsect, nbrkeys) != 0)
 		printf("Warning: missing keys !\n");
