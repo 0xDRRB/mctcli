@@ -104,10 +104,10 @@ int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 				}
 				mifare_classic_disconnect(tags[0]);
 			}
+			printf("Mapping... Sector: %d/%d   Key:%d/%d         \r", i+1, nbrsect, j+1, nbrkeys);
+			fflush(stdout);
 			if(myKM[i].keyA && myKM[i].keyB) break;
 		}
-		printf("Mapping: %d/%d\r", i+1, nbrsect);
-		fflush(stdout);
 	}
 	printf("\n");
 
@@ -438,11 +438,13 @@ int main(int argc, char** argv)
 	if(verb)
 		printmapping(myKM, nbrsect);
 
+	/*
 	if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
 		printf("Warning: missing blocks !\n");
 
 	if(verb)
 		printmfdata(nbrsect, mfdata);
+	*/
 
 	free(mfdata);
 
