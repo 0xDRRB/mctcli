@@ -26,15 +26,7 @@
 #define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
 #define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
 
-// old : Mifare sectors 10 -> 14
-#define START_SECTOR     8
-#define NBR_SECTOR       4
-#define HEADER_OFFSET    0
-#define DATAA_OFFSET    48
-#define DATAB_OFFSET   112
-#define FOOTER_OFFSET  176
-
-#define CRC16 0x8005
+#define FILENAME "keys.txt"
 
 MifareClassicKey *keylist = NULL;
 
@@ -67,14 +59,12 @@ static void sighandler(int sig)
 
 void printhelp(char *binname)
 {
-	printf("RFID Mifare Laundry card reader/writer v0.0.1\n");
+	printf("Mifare Classic Tool CLI v0.0.1\n");
 	printf("Copyright (c) 2019 - Denis Bodor\n\n");
 	printf("Usage : %s [OPTIONS]\n", binname);
-	printf(" -r file     read data from file (default: read from tag)\n");
+	printf(" -r file     read keys from file (default: keys.txt)\n");
 	printf(" -w file     write data to file (filename will be file.UID)\n");
 	printf(" -y          force file overwrite\n");
-	printf(" -c float    new credit to set\n");
-	printf(" -u          update tag (use with -c)\n");
 	printf(" -v          verbose mode\n");
 	printf(" -h          show this help\n");
 }
@@ -336,18 +326,10 @@ int main(int argc, char** argv)
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
-	while ((retopt = getopt(argc, argv, "r:w:c:uvyh")) != -1) {
+	while ((retopt = getopt(argc, argv, "r:w:vyh")) != -1) {
 		switch (retopt) {
 			case 'r':
-				if(regcomp(&regex, "\\.[a-fA-F0-9]{8}$", REG_EXTENDED)) {
-					fprintf(stderr, "Error: Enable to compile regex\n");
-					return(EXIT_FAILURE);
-				}
 				rfilename = strdup(optarg);
-				if(regexec(&regex, rfilename, 0, NULL, 0) != 0) {
-					fprintf(stderr, "Error: filename must have valid UID extension (exemple : file.54D27CC8)\n");
-					return(EXIT_FAILURE);
-				}
 				opt++;
 				break;
 			case 'w':
@@ -356,18 +338,6 @@ int main(int argc, char** argv)
 					return(EXIT_FAILURE);
 				}
 				wfilename = strdup(optarg);
-				opt++;
-				break;
-			case 'c':
-//				fcredit = strtof(optarg, &endptr);
-//				if (endptr == optarg) {
-//					fprintf(stderr, "You must specify a valid credit value\n");
-//					return(EXIT_FAILURE);
-//				}
-				opt++;
-				break;
-			case 'u':
-				updatetag = 1;
 				opt++;
 				break;
 			case 'v':
@@ -396,12 +366,19 @@ int main(int argc, char** argv)
 		return(EXIT_FAILURE);
 	}
 
-	// FIXME: make this an option
-	if((nbrkeys = loadkeys("keys.txt")) < 1) {
-		fprintf(stderr, "No key to use. Exiting.\n");
-		exit(EXIT_FAILURE);
+	if(rfilename) {
+		if((nbrkeys = loadkeys(rfilename)) < 1) {
+			fprintf(stderr, "No key to use. Exiting.\n");
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		if((nbrkeys = loadkeys(FILENAME)) < 1) {
+			fprintf(stderr, "No key to use. Exiting.\n");
+			exit(EXIT_FAILURE);
+		}
 	}
-	printkey(nbrkeys);
+	if(verb)
+		printkey(nbrkeys);
 
 	// Initialize libnfc and set the nfc_context
 	nfc_init(&context);
@@ -458,12 +435,14 @@ int main(int argc, char** argv)
 	if(maptag(tags, myKM, nbrsect, nbrkeys) != 0)
 		printf("Warning: missing keys !\n");
 
-	printmapping(myKM, nbrsect);
+	if(verb)
+		printmapping(myKM, nbrsect);
 
 	if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
 		printf("Warning: missing blocks !\n");
 
-	printmfdata(nbrsect, mfdata);
+	if(verb)
+		printmfdata(nbrsect, mfdata);
 
 	free(mfdata);
 
