@@ -70,7 +70,7 @@ void printhelp(char *binname)
 }
 
 int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
-{	// FIXME: use loaded defaults keys
+{
 	int i, j, k;
 	int count = 0;
 
@@ -104,7 +104,7 @@ int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 				}
 				mifare_classic_disconnect(tags[0]);
 			}
-			printf("Mapping... Sector: %d/%d   Key:%d/%d         \r", i+1, nbrsect, j+1, nbrkeys);
+			printf("Mapping... Sector: %d/%d   Key:%d/%d     %c  \r", i+1, nbrsect, j+1, nbrkeys, (myKM[i].keyA && myKM[i].keyB) ? '!' : ' ');
 			fflush(stdout);
 			if(myKM[i].keyA && myKM[i].keyB) break;
 		}
