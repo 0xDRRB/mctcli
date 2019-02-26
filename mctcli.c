@@ -62,9 +62,12 @@ void printhelp(char *binname)
 	printf("Mifare Classic Tool CLI v0.0.1\n");
 	printf("Copyright (c) 2019 - Denis Bodor\n\n");
 	printf("Usage : %s [OPTIONS]\n", binname);
-	printf(" -r file     read keys from file (default: keys.txt)\n");
-	printf(" -w file     write data to file (filename will be file.UID)\n");
-	printf(" -y          force file overwrite\n");
+	printf(" -k file     read keys from file (default: keys.txt)\n");
+	printf(" -l          display keylist\n");
+	printf(" -m          display keymap\n");
+	printf(" -d          display tag data\n");
+//	printf(" -w file     write data to file (filename will be file.UID)\n");
+//	printf(" -y          force file overwrite\n");
 	printf(" -v          verbose mode\n");
 	printf(" -h          show this help\n");
 }
@@ -314,9 +317,14 @@ int main(int argc, char** argv)
 	int opt = 0;
 	char *endptr;
 
-	int verb = 0;
-	int updatetag = 0;
-	int foverwrite = 0;
+	int optlistk = 0;
+	int optmap = 0;
+	int optdispmap = 0;
+	int optread = 0;
+	int optdispdata = 0;
+	int optverb = 0;
+	int optfoverwrite = 0;
+
 	char *wfilename = NULL;
 	char *rfilename = NULL;
 	char fnbuffer[256];
@@ -326,9 +334,9 @@ int main(int argc, char** argv)
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
-	while ((retopt = getopt(argc, argv, "r:w:vyh")) != -1) {
+	while ((retopt = getopt(argc, argv, "k:w:lmdvyh")) != -1) {
 		switch (retopt) {
-			case 'r':
+			case 'k':
 				rfilename = strdup(optarg);
 				opt++;
 				break;
@@ -340,12 +348,27 @@ int main(int argc, char** argv)
 				wfilename = strdup(optarg);
 				opt++;
 				break;
+			case 'l':
+				optlistk = 1;
+				opt++;
+				break;
+			case 'm':
+				optmap = 1;
+				optdispmap = 1;
+				opt++;
+				break;
+			case 'd':
+				optmap = 1;
+				optread = 1;
+				optdispdata = 1;
+				opt++;
+				break;
 			case 'v':
-				verb = 1;
+				optverb = 1;
 				opt++;
 				break;
 			case 'y':
-				foverwrite = 1;
+				optfoverwrite = 1;
 				opt++;
 				break;
 			case 'h':
@@ -377,8 +400,11 @@ int main(int argc, char** argv)
 			exit(EXIT_FAILURE);
 		}
 	}
-	if(verb)
+	if(optlistk)
 		printkey(nbrkeys);
+
+	if(!optread && !optmap)
+		exit(EXIT_SUCCESS);
 
 	// Initialize libnfc and set the nfc_context
 	nfc_init(&context);
@@ -432,19 +458,19 @@ int main(int argc, char** argv)
 	}
 	bzero(mfdata, nbrblck*16);
 
-	if(maptag(tags, myKM, nbrsect, nbrkeys) != 0)
-		printf("Warning: missing keys !\n");
+	if(optmap)
+		if(maptag(tags, myKM, nbrsect, nbrkeys) != 0)
+			printf("Warning: missing keys !\n");
 
-	if(verb)
+	if(optdispmap)
 		printmapping(myKM, nbrsect);
 
-	/*
-	if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
-		printf("Warning: missing blocks !\n");
+	if(optread)
+		if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
+			printf("Warning: missing blocks !\n");
 
-	if(verb)
+	if(optdispdata)
 		printmfdata(nbrsect, mfdata);
-	*/
 
 	free(mfdata);
 
