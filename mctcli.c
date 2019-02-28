@@ -65,7 +65,7 @@ void printhelp(char *binname)
 	printf(" -k file     read keys from file (default: keys.txt)\n");
 	printf(" -l          display keylist\n");
 	printf(" -m          display keymap\n");
-	printf(" -d          display tag data\n");
+	printf(" -r          read tag and display data\n");
 //	printf(" -w file     write data to file (filename will be file.UID)\n");
 //	printf(" -y          force file overwrite\n");
 	printf(" -v          verbose mode\n");
@@ -334,7 +334,7 @@ int main(int argc, char** argv)
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
-	while ((retopt = getopt(argc, argv, "k:w:lmdvyh")) != -1) {
+	while ((retopt = getopt(argc, argv, "k:w:lmrvyh")) != -1) {
 		switch (retopt) {
 			case 'k':
 				rfilename = strdup(optarg);
@@ -357,7 +357,7 @@ int main(int argc, char** argv)
 				optdispmap = 1;
 				opt++;
 				break;
-			case 'd':
+			case 'r':
 				optmap = 1;
 				optread = 1;
 				optdispdata = 1;
@@ -378,6 +378,11 @@ int main(int argc, char** argv)
 				printhelp(argv[0]);
 				return(EXIT_FAILURE);
 		}
+	}
+
+	if(!opt) {
+		printhelp(argv[0]);
+		return(EXIT_FAILURE);
 	}
 
 	if(signal(SIGINT, &sighandler) == SIG_ERR) {
