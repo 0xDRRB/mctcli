@@ -107,7 +107,7 @@ int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 				}
 				mifare_classic_disconnect(tags[0]);
 			}
-			printf("Mapping... Sector: %d/%d   Key:%d/%d     %c  \r", i+1, nbrsect, j+1, nbrkeys, (myKM[i].keyA && myKM[i].keyB) ? '!' : ' ');
+			printf("Mapping... Sector:%2d/%d   Key:%3d/%d  %s  \r", i+1, nbrsect, j+1, nbrkeys, (myKM[i].keyA && myKM[i].keyB) ? "Got it!" : "       ");
 			fflush(stdout);
 			if(myKM[i].keyA && myKM[i].keyB) break;
 		}
