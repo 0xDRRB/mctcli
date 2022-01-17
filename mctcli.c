@@ -33,9 +33,6 @@
 MifareClassicKey *keylist = NULL;
 int nbrkeys;
 
-// last valid keys used in mapping
-MifareClassicKey *lastusedkeys[10];
-
 nfc_context *context;
 nfc_device *pnd = NULL;
 
@@ -82,10 +79,46 @@ void printhelp(char *binname)
 
 int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 {
-	int i, j, k;
+	int i, j, k, c;
 	int count = 0;
 
-	for(i=0; i<nbrsect; i++) {
+	for(i=0; i < nbrsect; i++) {
+		// try known keys first
+		for(c=0; c < nbrsect;  c++) {
+			if(myKM[c].keyA != NULL && myKM[i].keyA == NULL) {
+				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *myKM[c].keyA, MFC_KEY_A) == OPERATION_OK) {
+					myKM[i].keyA = myKM[c].keyA;
+					count++;
+					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
+						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
+							myKM[i].readA |= (1 << (k-mifare_classic_sector_first_block(i)));
+						}
+						// is keyB readable ? If so, keyB cannot be used for auth
+						if(!mifare_classic_get_trailer_block_permission(tags[0], mifare_classic_sector_last_block(i), MCAB_READ_KEYB, MFC_KEY_A)) {
+							if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_B)) {
+								myKM[i].readB |= (1 << (k-mifare_classic_sector_first_block(i)));
+							}
+						}
+					}
+				}
+				mifare_classic_disconnect(tags[0]);
+			}
+
+			if(myKM[c].keyB != NULL && myKM[i].keyB == NULL) {
+				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *myKM[c].keyB, MFC_KEY_B) == OPERATION_OK) {
+					myKM[i].keyB = myKM[c].keyB;
+					count++;
+				}
+				mifare_classic_disconnect(tags[0]);
+			}
+			printf("Mapping... Sector:%2d/%d   Key:%3d/%d  %s  \r", i+1, nbrsect, c+1, nbrsect, (myKM[i].keyA && myKM[i].keyB) ? "XXXXXXX" : "       ");
+			fflush(stdout);
+			if(myKM[i].keyA && myKM[i].keyB) break;
+		}
+
+		// then use full keylist
 		for(j=0; j < nbrkeys; j++) {
 			if(myKM[i].keyA == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
