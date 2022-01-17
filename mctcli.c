@@ -66,7 +66,7 @@ void printhelp(char *binname)
 	printf(" -l              display keylist\n");
 	printf(" -L              list available readers/devices\n");
 	printf(" -d connstring   use this device (default: use the first available device)\n");
-	printf(" -m              display keymap\n");
+	printf(" -m              just map and display keymap\n");
 	printf(" -r              read tag and display data\n");
 //	printf(" -w file         write data to file (filename will be file.UID)\n");
 //	printf(" -y              force file overwrite\n");
@@ -74,7 +74,7 @@ void printhelp(char *binname)
 	printf(" -h              show this help\n");
 }
 
-int maptag(MifareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
+int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 {
 	int i, j, k;
 	int count = 0;
@@ -157,7 +157,7 @@ void printmapping(struct keymap *myKM, int nbrsect)
 		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
 }
 
-int readtag(MifareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
+int readtag(FreefareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
 {
 	int i, k;
 	int ret = 0;
@@ -308,7 +308,7 @@ void printkey(int num)
 int main(int argc, char** argv)
 {
 
-	MifareTag *tags = NULL;
+	FreefareTag *tags = NULL;
 	size_t device_count;
 	nfc_connstring devices[8];
 	unsigned char *mfdata = NULL;
@@ -479,12 +479,12 @@ int main(int argc, char** argv)
 	}
 
 	switch(freefare_get_tag_type(tags[0])) {
-		case CLASSIC_1K:
+		case MIFARE_CLASSIC_1K:
 			printf("%u : Mifare 1k (S50) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 16;  // 16 sectors * 4 bloks
 			nbrblck= 4*16;
 			break;
-		case CLASSIC_4K:
+		case MIFARE_CLASSIC_4K:
 			printf("%u : Mifare 4k (S70) with UID: %s\n", 0, freefare_get_tag_uid(tags[0]));
 			nbrsect = 40;  // 32 sectors * 4 blocks + 8 sector * 16 blocks
 			nbrblck = (4*32)+(8*16);
