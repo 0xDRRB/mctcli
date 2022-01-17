@@ -28,18 +28,24 @@
 
 #define FILENAME "keys.txt"
 
+
+// keylist from file
 MifareClassicKey *keylist = NULL;
+int nbrkeys;
+
+// last valid keys used in mapping
+MifareClassicKey *lastusedkeys[10];
 
 nfc_context *context;
 nfc_device *pnd = NULL;
 
 struct keymap {
-	MifareClassicKey *keyA;
-	MifareClassicKey *keyB;
-	uint16_t readA;
-	uint16_t readB;
-	uint16_t writeA;
-	uint16_t writeB;
+	MifareClassicKey *keyA;	// pointer to key A in keylist
+	MifareClassicKey *keyB; // pointer to key B in keylist
+	uint16_t readA; 		// bitmap of sectors read by this key A in the bloc
+	uint16_t readB; 		// bitmap of sectors read by this key B in the bloc
+	uint16_t writeA;		// TODO
+	uint16_t writeB;		// TODO
 };
 
 int bcd2bin(uint8_t val) {
@@ -74,7 +80,7 @@ void printhelp(char *binname)
 	printf(" -h              show this help\n");
 }
 
-int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
+int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 {
 	int i, j, k;
 	int count = 0;
@@ -84,7 +90,8 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 			if(myKM[i].keyA == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
 						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keylist[j], MFC_KEY_A) == OPERATION_OK) {
-					myKM[i].keyA = &keylist[j];
+					//myKM[i].keyA = &keylist[j];
+					myKM[i].keyA = keylist+j;
 					count++;
 					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
@@ -104,7 +111,8 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect, int nbrkeys)
 			if(myKM[i].keyB == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
 						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keylist[j], MFC_KEY_B) == OPERATION_OK) {
-					myKM[i].keyB = &keylist[j];
+					//myKM[i].keyB = &keylist[j];
+					myKM[i].keyB = keylist+j;
 					count++;
 				}
 				mifare_classic_disconnect(tags[0]);
@@ -152,9 +160,9 @@ void printmapping(struct keymap *myKM, int nbrsect)
 		countkeys += myKM[i].keyB == NULL ? 0 : 1;
 	}
 	if(countkeys == nbrsect*2)
-		printf("Found all keys (%d)\n", countkeys);
+		printf("Found all keys\n");
 	else
-		printf("Keymap incomplete: %d/%d\n", countkeys, (nbrsect*2));
+		printf(BOLDRED"Keymap incomplete: "RESET"%d/%d\n", countkeys, (nbrsect*2));
 }
 
 int readtag(FreefareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *dest, int nbrblck)
@@ -171,7 +179,6 @@ int readtag(FreefareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *
 		// read sector block by block, check if we have keys
 		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 			if(myKM[i].readB & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyB != NULL) {
-				if(tmpkeyB != NULL) {
 					if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
 							(mifare_classic_authenticate(tags[0],
 														 k,
@@ -196,9 +203,7 @@ int readtag(FreefareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *
 						mifare_classic_disconnect(tags[0]);
 						ret++;
 					}
-				}
 			} else if(myKM[i].readA & (1 << (k-mifare_classic_sector_first_block(i))) && tmpkeyA != NULL){
-				if(tmpkeyA != NULL) {
 					if((mifare_classic_connect(tags[0]) == OPERATION_OK) &&
 							(mifare_classic_authenticate(tags[0],
 														 k,
@@ -223,7 +228,6 @@ int readtag(FreefareTag *tags, struct keymap *myKM, int nbrsect, unsigned char *
 						mifare_classic_disconnect(tags[0]);
 						ret++;
 					}
-				}
 			} else {
 				// key missing for this block
 				ret++;
@@ -242,9 +246,9 @@ int printmfdata(int nbrsect, unsigned char *src)
 	for(i=0; i<nbrsect; i++) {
 		printf("+Sector: %d\n", i);
 		for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
-			if(k==0) printf(MAGENTA);
+			if(k==0) printf(MAGENTA); // sector 0 is special
 			for(j=0; j<16; j++) {
-				if(k==mifare_classic_sector_last_block(i)) {
+				if(k==mifare_classic_sector_last_block(i)) { // last sector of a block is special
 					if(j==0) printf(BOLDGREEN);
 					if(j==6) printf(YELLOW);
 					if(j==10) printf(GREEN);
@@ -275,6 +279,7 @@ int loadkeys(const char *filename)
 	}
 
 	while ((read = getline(&strline, &len, fp)) != -1) {
+		// ignore empty line or starting with '#'
 		if(strline[0] == '#' || strline[0] == '\n') continue;
 		if(sscanf(strline, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6) {
 //			printf("import key %d from line %d: %02X %02X %02X %02X %02X %02X\n", count, line, tmpkey[0], tmpkey[1], tmpkey[2], tmpkey[3], tmpkey[4], tmpkey[5]);
@@ -297,10 +302,10 @@ int loadkeys(const char *filename)
 	return(count);
 }
 
-void printkey(int num)
+void printkey()
 {
 	printf("Key list:\n");
-	for(int i=0; i<num; i++) {
+	for(int i=0; i<nbrkeys; i++) {
 		printf("%5d: %02X %02X %02X %02X %02X %02X\n", i, keylist[i][0], keylist[i][1], keylist[i][2], keylist[i][3], keylist[i][4], keylist[i][5]);
 	}
 }
@@ -315,7 +320,6 @@ int main(int argc, char** argv)
 
 	int nbrsect;
 	int nbrblck;
-	int nbrkeys;
 
 	int retopt;
 	int opt = 0;
@@ -421,7 +425,7 @@ int main(int argc, char** argv)
 		}
 	}
 	if(optlistk)
-		printkey(nbrkeys);
+		printkey();
 
 	if(!optread && !optmap && !optlistdev)
 		exit(EXIT_SUCCESS);
@@ -505,15 +509,15 @@ int main(int argc, char** argv)
 	bzero(mfdata, nbrblck*16);
 
 	if(optmap)
-		if(maptag(tags, myKM, nbrsect, nbrkeys) != 0)
-			printf("Warning: missing keys !\n");
+		if(maptag(tags, myKM, nbrsect) != 0)
+			printf(BOLDRED"Warning: missing keys !"RESET"\n");
 
 	if(optdispmap)
 		printmapping(myKM, nbrsect);
 
 	if(optread)
 		if(readtag(tags, myKM, nbrsect, mfdata, nbrblck) != 0)
-			printf("Warning: missing blocks !\n");
+			printf(BOLDRED"Warning: missing blocks !"RESET"\n");
 
 	if(optdispdata)
 		printmfdata(nbrsect, mfdata);
