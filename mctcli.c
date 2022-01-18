@@ -28,15 +28,12 @@
 
 #define FILENAME "keys.txt"
 
-#define MAXGOODKEYS 40
-
 // keylist from file
 MifareClassicKey *keylist = NULL;
 int nbrkeys;
 
 // last good keys
-//MifareClassicKey *goodkeys[];
-MifareClassicKey *goodkeys[MAXGOODKEYS];
+MifareClassicKey **goodkeys;
 int nbrgoodkeys;
 
 nfc_context *context;
@@ -86,7 +83,7 @@ void printhelp(char *binname)
 void addgoodkey(MifareClassicKey *key)
 {
 	printf("\n>>> NEW KEY: ");
-	printf(">>>%02x%02x%02x%02x%02x%02x @", (*key)[0],(*key)[1],(*key)[2],(*key)[3],(*key)[4],(*key)[5]);
+	printf("%02x%02x%02x%02x%02x%02x @", (*key)[0],(*key)[1],(*key)[2],(*key)[3],(*key)[4],(*key)[5]);
 	printf("0x%08X\n", key);
 
 	// search before add
@@ -95,10 +92,13 @@ void addgoodkey(MifareClassicKey *key)
 		if(goodkeys[i] == key) {
 			printf("YES abord\n");
 			return;
+		} else {
+			printf("nop\n");
 		}
 	}
 
-	printf("\n>>> ADDING\n");
+	printf(">>> ADDING\n");
+	/*
 	for(int i=0; i<MAXGOODKEYS; i++) {
 		if(goodkeys[i] == NULL) {
 			goodkeys[i] = key;
@@ -106,6 +106,12 @@ void addgoodkey(MifareClassicKey *key)
 			break;
 		}
 	}
+	*/
+	if((goodkeys = realloc(goodkeys, nbrgoodkeys * sizeof(MifareClassicKey *))) == NULL) {
+		fprintf(stderr, "malloc list error: %s\n", strerror(errno));
+	}
+	nbrgoodkeys++;
+	goodkeys[nbrgoodkeys-1] = key;
 
 	/*
 	printf(">>> ADDING\n");
@@ -131,11 +137,11 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 
 	for(i=0; i < nbrsect; i++) {
 		// try known keys first
-		for(c=0; c < nbrsect;  c++) {
-			if(myKM[c].keyA != NULL && myKM[i].keyA == NULL) {
+		for(c=0; c < nbrgoodkeys;  c++) {
+			if(goodkeys[c] != NULL && myKM[i].keyA == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
-						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *myKM[c].keyA, MFC_KEY_A) == OPERATION_OK) {
-					myKM[i].keyA = myKM[c].keyA;
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *goodkeys[c], MFC_KEY_A) == OPERATION_OK) {
+					myKM[i].keyA = goodkeys[c];
 					count++;
 					for(k=mifare_classic_sector_first_block(i); k <= mifare_classic_sector_last_block(i); k++) {
 						if(mifare_classic_get_data_block_permission(tags[0], k, MCAB_R, MFC_KEY_A)) {
@@ -152,16 +158,16 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 				mifare_classic_disconnect(tags[0]);
 			}
 
-			if(myKM[c].keyB != NULL && myKM[i].keyB == NULL) {
+			if(goodkeys[c] != NULL && myKM[i].keyB == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
-						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *myKM[c].keyB, MFC_KEY_B) == OPERATION_OK) {
-					myKM[i].keyB = myKM[c].keyB;
+						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), *goodkeys[c], MFC_KEY_B) == OPERATION_OK) {
+					myKM[i].keyB = goodkeys[c];
 					count++;
 				}
 				mifare_classic_disconnect(tags[0]);
 			}
 
-			printf("Mapping... Sector:%2d/%d   Key:%3d/%d  %s  \r", i+1, nbrsect, c+1, nbrsect, (myKM[i].keyA && myKM[i].keyB) ? "Got it!" : "       ");
+			printf("Mapping... Sector:%2d/%d   Key:%3d/%d  %s  \r", i+1, nbrsect, c+1, nbrgoodkeys, (myKM[i].keyA && myKM[i].keyB) ? "Got it!" : "       ");
 			fflush(stdout);
 			if(myKM[i].keyA && myKM[i].keyB) break;
 		}
@@ -618,11 +624,16 @@ int main(int argc, char** argv)
 	nfc_exit(context);
 
 	printf("nbrgoodkeys = %d\n", nbrgoodkeys);
+	printf("\n> goodkeys @ 0x%08X\n", goodkeys); // address of array
 
 	for(int i=0; i<nbrgoodkeys; i++) {
 		MifareClassicKey *tmpkey = goodkeys[i];
-		printf("%02x%02x%02x%02x%02x%02x\n", (*tmpkey)[0],(*tmpkey)[1],(*tmpkey)[2],(*tmpkey)[3],(*tmpkey)[4],(*tmpkey)[5]);
+		printf("%02x%02x%02x%02x%02x%02x  @", (*tmpkey)[0],(*tmpkey)[1],(*tmpkey)[2],(*tmpkey)[3],(*tmpkey)[4],(*tmpkey)[5]);
+		printf("0x%08X\n", tmpkey);
 	}
+
+	if(goodkeys)
+		free(goodkeys);
 
 	if(keylist)
 		free(keylist);
