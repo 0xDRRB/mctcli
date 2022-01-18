@@ -85,18 +85,20 @@ void printhelp(char *binname)
 
 void addgoodkey(MifareClassicKey *key)
 {
-	printf("\n>>> NEW KEY <<<\n");
-	printf(">>>%08X\n", key);
-	printf(">>>%02x%02x%02x%02x%02x%02x\n\n", (*key)[0],(*key)[1],(*key)[2],(*key)[3],(*key)[4],(*key)[5]);
+	printf("\n>>> NEW KEY: ");
+	printf(">>>%02x%02x%02x%02x%02x%02x @", (*key)[0],(*key)[1],(*key)[2],(*key)[3],(*key)[4],(*key)[5]);
+	printf("0x%08X\n", key);
 
 	// search before add
 	for(int i=0; i<nbrgoodkeys; i++) {
-		printf("%08X == %08X ???\n", goodkeys[i], key);
-		if(goodkeys[i] == key)
+		printf(">>> %08X == %08X ???    ", goodkeys[i], key);
+		if(goodkeys[i] == key) {
+			printf("YES abord\n");
 			return;
+		}
 	}
 
-	printf(">>> ADDING\n");
+	printf("\n>>> ADDING\n");
 	for(int i=0; i<MAXGOODKEYS; i++) {
 		if(goodkeys[i] == NULL) {
 			goodkeys[i] = key;
