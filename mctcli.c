@@ -32,7 +32,7 @@
 MifareClassicKey *keylist = NULL;
 int nbrkeys;
 
-// last good keys
+// last good keys in cache
 MifareClassicKey **goodkeys;
 int nbrgoodkeys;
 
@@ -82,52 +82,18 @@ void printhelp(char *binname)
 
 void addgoodkey(MifareClassicKey *key)
 {
-	printf("\n>>> NEW KEY: ");
-	printf("%02x%02x%02x%02x%02x%02x @", (*key)[0],(*key)[1],(*key)[2],(*key)[3],(*key)[4],(*key)[5]);
-	printf("0x%08X\n", key);
-
 	// search before add
 	for(int i=0; i<nbrgoodkeys; i++) {
-		printf(">>> %08X == %08X ???    ", goodkeys[i], key);
-		if(goodkeys[i] == key) {
-			printf("YES abord\n");
+		if(goodkeys[i] == key)
 			return;
-		} else {
-			printf("nop\n");
-		}
 	}
 
-	printf(">>> ADDING\n");
-	/*
-	for(int i=0; i<MAXGOODKEYS; i++) {
-		if(goodkeys[i] == NULL) {
-			goodkeys[i] = key;
-			nbrgoodkeys++;
-			break;
-		}
-	}
-	*/
+	// realloc and add the ney key to cache
 	if((goodkeys = realloc(goodkeys, nbrgoodkeys * sizeof(MifareClassicKey *))) == NULL) {
 		fprintf(stderr, "malloc list error: %s\n", strerror(errno));
 	}
 	nbrgoodkeys++;
 	goodkeys[nbrgoodkeys-1] = key;
-
-	/*
-	printf(">>> ADDING\n");
-	if((goodkeys=(MifareClassicKey *)realloc(goodkeys, (nbrgoodkeys+1)*sizeof(MifareClassicKey *))) == NULL) {
-		fprintf(stderr, "malloc list error: %s\n", strerror(errno));
-	}
-	nbrgoodkeys++;
-	goodkeys[nbrgoodkeys-1] = key;
-	*/
-
-	/*
-	*goodkeys[nbrgoodkeys-1] = key;
-
-	MifareClassicKey *toto = goodkeys[0];
-	printf("     %02x%02x%02x%02x%02x%02x\n\n", (*toto)[0],(*toto)[1],(*toto)[2],(*toto)[3],(*toto)[4],(*toto)[5]);
-	*/
 }
 
 int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
@@ -136,7 +102,7 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 	int count = 0;
 
 	for(i=0; i < nbrsect; i++) {
-		// try known keys first
+		// try cached keys first
 		for(c=0; c < nbrgoodkeys;  c++) {
 			if(goodkeys[c] != NULL && myKM[i].keyA == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
@@ -180,7 +146,6 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 			if(myKM[i].keyA == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
 						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keylist[j], MFC_KEY_A) == OPERATION_OK) {
-					//myKM[i].keyA = &keylist[j];
 					myKM[i].keyA = keylist+j;
 					addgoodkey(myKM[i].keyA);
 					count++;
@@ -202,7 +167,6 @@ int maptag(FreefareTag *tags, struct keymap *myKM, int nbrsect)
 			if(myKM[i].keyB == NULL) {
 				if(mifare_classic_connect(tags[0]) == OPERATION_OK &&
 						mifare_classic_authenticate(tags[0], mifare_classic_sector_last_block(i), keylist[j], MFC_KEY_B) == OPERATION_OK) {
-					//myKM[i].keyB = &keylist[j];
 					myKM[i].keyB = keylist+j;
 					addgoodkey(myKM[i].keyB);
 					count++;
@@ -375,12 +339,10 @@ int loadkeys(const char *filename)
 		// ignore empty line or starting with '#'
 		if(strline[0] == '#' || strline[0] == '\n') continue;
 		if(sscanf(strline, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6) {
-//			printf("import key %d from line %d: %02X %02X %02X %02X %02X %02X\n", count, line, tmpkey[0], tmpkey[1], tmpkey[2], tmpkey[3], tmpkey[4], tmpkey[5]);
 			if((keylist=(MifareClassicKey *)realloc(keylist, (count+1)*sizeof(MifareClassicKey))) == NULL) {
 				fprintf(stderr, "malloc list error: %s\n", strerror(errno));
 			}
 			memcpy(keylist[count], &tmpkey, sizeof(MifareClassicKey));
-//			printf("Key %d: %02X %02X %02X %02X %02X %02X\n", count, keylist[count][0], keylist[count][1], keylist[count][2], keylist[count][3], keylist[count][4], keylist[count][5]);
 			count++;
 		} else {
 			fprintf(stderr, "Bad line syntax at line %d\n", line);
@@ -622,15 +584,6 @@ int main(int argc, char** argv)
 	nfc_close(pnd);
 	// Release the context
 	nfc_exit(context);
-
-	printf("nbrgoodkeys = %d\n", nbrgoodkeys);
-	printf("\n> goodkeys @ 0x%08X\n", goodkeys); // address of array
-
-	for(int i=0; i<nbrgoodkeys; i++) {
-		MifareClassicKey *tmpkey = goodkeys[i];
-		printf("%02x%02x%02x%02x%02x%02x  @", (*tmpkey)[0],(*tmpkey)[1],(*tmpkey)[2],(*tmpkey)[3],(*tmpkey)[4],(*tmpkey)[5]);
-		printf("0x%08X\n", tmpkey);
-	}
 
 	if(goodkeys)
 		free(goodkeys);
