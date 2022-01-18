@@ -5,3 +5,4 @@ Session.vim
 *.o
 mctcli
 extended-std.keys
+mfc_default_keys.dic

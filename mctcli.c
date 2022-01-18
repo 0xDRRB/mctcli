@@ -523,6 +523,7 @@ int main(int argc, char** argv)
 
 	if (pnd == NULL) {
 		fprintf(stderr, "Error: %s\n", "Unable to open NFC device.");
+		nfc_exit(context);
 		exit(EXIT_FAILURE);
 	}
 
