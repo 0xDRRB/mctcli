@@ -1,6 +1,7 @@
 TARGET  := mctcli
 WARN    := -Wall
-CFLAGS  := -O2 ${WARN} `pkg-config --cflags libnfc libfreefare`
+#OLDLIB	:= -DOLDFREEFARE
+CFLAGS  := -O2 ${WARN} `pkg-config --cflags libnfc libfreefare` ${OLDLIB}
 LDFLAGS := `pkg-config --libs libnfc libfreefare` -lm
 CC      := gcc
 

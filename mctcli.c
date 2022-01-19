@@ -28,6 +28,14 @@
 
 #define FILENAME "keys.txt"
 
+// if we are using non-github libfreefare
+#ifdef OLDFREEFARE
+#define MIFARE_CLASSIC_1K CLASSIC_1K
+#define MIFARE_CLASSIC_4K CLASSIC_4K
+#define FreefareTag MifareTag
+#endif
+
+
 // keylist from file
 MifareClassicKey *keylist = NULL;
 int nbrkeys;
@@ -367,7 +375,6 @@ void printkey()
 
 int main(int argc, char** argv)
 {
-
 	FreefareTag *tags = NULL;
 	size_t device_count;
 	nfc_connstring devices[8];
