@@ -63,7 +63,7 @@ int bcd2bin(uint8_t val) {
 static void sighandler(int sig)
 {
 	printf("Caught signal %d\n", sig);
-	if (pnd != NULL) {
+	if(pnd != NULL) {
 		nfc_abort_command(pnd);
 		nfc_close(pnd);
 	}
@@ -338,12 +338,12 @@ int loadkeys(const char *filename)
 	MifareClassicKey tmpkey;
 
 	fp = fopen(filename, "rt");
-	if (fp == NULL) {
+	if(fp == NULL) {
 		fprintf(stderr, "Error opening file %s: %s\n", filename, strerror(errno));
 		return(0);
 	}
 
-	while ((read = getline(&strline, &len, fp)) != -1) {
+	while((read = getline(&strline, &len, fp)) != -1) {
 		// ignore empty line or starting with '#'
 		if(strline[0] == '#' || strline[0] == '\n') continue;
 		if(sscanf(strline, "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx", &tmpkey[0], &tmpkey[1], &tmpkey[2], &tmpkey[3], &tmpkey[4], &tmpkey[5]) == 6) {
@@ -407,7 +407,7 @@ int main(int argc, char** argv)
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
-	while ((retopt = getopt(argc, argv, "k:w:d:lmrvyLh")) != -1) {
+	while((retopt = getopt(argc, argv, "k:w:d:lmrvyLh")) != -1) {
 		switch (retopt) {
 			case 'k':
 				rfilename = strdup(optarg);
@@ -494,14 +494,14 @@ int main(int argc, char** argv)
 
 	// Initialize libnfc and set the nfc_context
 	nfc_init(&context);
-	if (context == NULL) {
+	if(context == NULL) {
 		fprintf(stderr, "Unable to init libnfc\n");
 		exit(EXIT_FAILURE);
 	}
 
 	// Scan readers/devices
 	device_count = nfc_list_devices (context, devices, sizeof(devices)/sizeof(*devices));
-	if (device_count <= 0) {
+	if(device_count <= 0) {
 		fprintf(stderr, "No NFC device found");
 		nfc_exit(context);
 		exit(EXIT_FAILURE);
@@ -509,9 +509,9 @@ int main(int argc, char** argv)
 
 	if(optlistdev) {
 		printf("Available readers/devices:\n");
-		for (size_t d = 0; d < device_count; d++) {
+		for(size_t d = 0; d < device_count; d++) {
 			printf("  %lu: ", d);
-			if (!(pnd = nfc_open (context, devices[d]))) {
+			if(!(pnd = nfc_open (context, devices[d]))) {
 				printf("nfc_open() failed\n");
 			} else {
 				printf("%s (%s)\n", nfc_device_get_name(pnd), nfc_device_get_connstring(pnd));
@@ -528,7 +528,7 @@ int main(int argc, char** argv)
 	else
 		pnd = nfc_open(context, NULL);
 
-	if (pnd == NULL) {
+	if(pnd == NULL) {
 		fprintf(stderr, "Error: %s\n", "Unable to open NFC device.");
 		nfc_exit(context);
 		exit(EXIT_FAILURE);
