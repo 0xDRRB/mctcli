@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <regex.h>
 #include <signal.h>
 #include <nfc/nfc.h>
 #include <freefare.h>
@@ -29,7 +28,7 @@
 #define FILENAME "keys.txt"
 
 // if we are using non-github libfreefare
-#ifdef OLDFREEFARE
+#ifdef OLDFREEFARE  // v0.4.0 (2015)
 #define MIFARE_CLASSIC_1K CLASSIC_1K
 #define MIFARE_CLASSIC_4K CLASSIC_4K
 #define FreefareTag MifareTag
@@ -82,8 +81,6 @@ void printhelp(char *binname)
 	printf(" -d connstring   use this device (default: use the first available device)\n");
 	printf(" -m              just map and display keymap\n");
 	printf(" -r              read tag and display data\n");
-//	printf(" -w file         write data to file (filename will be file.UID)\n");
-//	printf(" -y              force file overwrite\n");
 	printf(" -v              verbose mode\n");
 	printf(" -h              show this help\n");
 }
@@ -385,40 +382,24 @@ int main(int argc, char** argv)
 
 	int retopt;
 	int opt = 0;
-	char *endptr;
 
 	int optlistk = 0;
 	int optmap = 0;
 	int optdispmap = 0;
 	int optread = 0;
 	int optdispdata = 0;
-	int optverb = 0;
-	int optfoverwrite = 0;
 	int optlistdev = 0;
 	char *optconnstring = NULL;
 
-
-	char *wfilename = NULL;
 	char *rfilename = NULL;
-	char fnbuffer[256];
-	char exbuffer[9] = { 0 };
-	regex_t regex;
 
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
 
-	while((retopt = getopt(argc, argv, "k:w:d:lmrvyLh")) != -1) {
+	while((retopt = getopt(argc, argv, "k:d:lmrLh")) != -1) {
 		switch (retopt) {
 			case 'k':
 				rfilename = strdup(optarg);
-				opt++;
-				break;
-			case 'w':
-				if(sizeof(optarg)+8+1 > sizeof(fnbuffer)) {
-					fprintf(stderr, "Invalid filename\n");
-					return(EXIT_FAILURE);
-				}
-				wfilename = strdup(optarg);
 				opt++;
 				break;
 			case 'l':
@@ -436,21 +417,12 @@ int main(int argc, char** argv)
 				optdispdata = 1;
 				opt++;
 				break;
-			case 'v':
-				optverb = 1;
-				opt++;
-				break;
-			case 'y':
-				optfoverwrite = 1;
-				opt++;
-				break;
 			case 'L':
 				optlistdev = 1;
 				opt++;
 				break;
 			case 'd':
 				optconnstring = strdup(optarg);
-				opt++;
 				break;
 			case 'h':
 				printhelp(argv[0]);
@@ -499,15 +471,16 @@ int main(int argc, char** argv)
 		exit(EXIT_FAILURE);
 	}
 
-	// Scan readers/devices
-	device_count = nfc_list_devices (context, devices, sizeof(devices)/sizeof(*devices));
-	if(device_count <= 0) {
-		fprintf(stderr, "No NFC device found");
-		nfc_exit(context);
-		exit(EXIT_FAILURE);
-	}
-
+	// FIXME put this in a displaydevices() function
 	if(optlistdev) {
+		// Scan readers/devices
+		device_count = nfc_list_devices(context, devices, sizeof(devices)/sizeof(*devices));
+		if(device_count <= 0) {
+			fprintf(stderr, "No NFC device found");
+			nfc_exit(context);
+			exit(EXIT_FAILURE);
+		}
+
 		printf("Available readers/devices:\n");
 		for(size_t d = 0; d < device_count; d++) {
 			printf("  %lu: ", d);
@@ -522,10 +495,11 @@ int main(int argc, char** argv)
 		return(EXIT_SUCCESS);
 	}
 
-	// Open, using the first available NFC device
 	if(optconnstring)
+		// Open, using specified NFC device
 		pnd = nfc_open(context, optconnstring);
 	else
+		// Open, using the first available NFC device
 		pnd = nfc_open(context, NULL);
 
 	if(pnd == NULL) {

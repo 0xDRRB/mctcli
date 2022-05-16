@@ -1,6 +1,7 @@
+# use "make OLDLIB=-DOLDFREEFARE" to use libfreefare<=0.4.0 (2015)
+
 TARGET  := mctcli
 WARN    := -Wall
-#OLDLIB	:= -DOLDFREEFARE
 CFLAGS  := -O2 ${WARN} `pkg-config --cflags libnfc libfreefare` ${OLDLIB}
 LDFLAGS := `pkg-config --libs libnfc libfreefare` -lm
 CC      := gcc
