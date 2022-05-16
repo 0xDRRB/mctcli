@@ -81,7 +81,6 @@ void printhelp(char *binname)
 	printf(" -d connstring   use this device (default: use the first available device)\n");
 	printf(" -m              just map and display keymap\n");
 	printf(" -r              read tag and display data\n");
-	printf(" -v              verbose mode\n");
 	printf(" -h              show this help\n");
 }
 
