@@ -2,8 +2,8 @@
 
 TARGET  := mctcli
 WARN    := -Wall
-CFLAGS  := -O2 ${WARN} `pkg-config --cflags libnfc libfreefare` ${OLDLIB}
-LDFLAGS := `pkg-config --libs libnfc libfreefare` -lm
+CFLAGS  := -O2 ${WARN} `pkg-config --cflags libfreefare` ${OLDLIB}
+LDFLAGS := `pkg-config --libs libfreefare` -lm
 CC      := gcc
 
 C_SRCS    = $(wildcard *.c)

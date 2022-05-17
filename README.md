@@ -1,5 +1,5 @@
 # MCTcli
-A simple (for now) tool inspired by [MIFARE Classic Tool](https://github.com/ikarus23/MifareClassicTool) on Android but in command-line (and written in C).
+A simple (for now) tool inspired by [MIFARE Classic Tool](https://github.com/ikarus23/MifareClassicTool) (Android) but in command-line (and written in C).
 It's a tool to try to access the content of a MIFARE Classic tag (1K/S50 or 4K/S70) using [libFreeFare](https://github.com/nfc-tools/libfreefare), [libNFC](https://github.com/nfc-tools/libnfc) and a device supported by libNFC (tested with ACR122U, ASK/LoGO, SCL3711 and PN532-over-USBserial).
 
 At this time `mctcli` can:
@@ -90,3 +90,5 @@ FFFFFFFFFFFFFF078069FFFFFFFFFFFF
 00000000000000000000000000000000
 [...]
 ```
+
+Note : NXP MIFARE Classic tags (S50 and S70) are outdated and insecure, don't use them for anything serious.
