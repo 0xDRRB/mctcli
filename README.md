@@ -1,11 +1,13 @@
 # MCTcli
 A simple (for now) tool inspired by [MIFARE Classic Tool](https://github.com/ikarus23/MifareClassicTool) (Android) but in command-line (and written in C).
-It's a tool to try to access the content of a MIFARE Classic tag (1K/S50 or 4K/S70) using [libFreeFare](https://github.com/nfc-tools/libfreefare), [libNFC](https://github.com/nfc-tools/libnfc) and a device supported by libNFC (tested with ACR122U, ASK/LoGO, SCL3711 and PN532-over-USBserial).
+It's a tool to try to access the content of a MIFARE Classic tag (1K/S50 or 4K/S70) using [libfreefare](https://github.com/nfc-tools/libfreefare), [libNFC](https://github.com/nfc-tools/libnfc) and a device supported by libNFC (tested with ACR122U, ASK/LoGO, SCL3711 and PN532-over-USBserial).
 
 At this time `mctcli` can:
-- try all keys in a dictionary (`keys.txt` by default, or use `-k file` with one of [those](https://github.com/RfidResearchGroup/proxmark3/tree/master/client/dictionaries))
+- try all keys in a dictionary (`~/mctcli_keys.dic`, `./mctcli_keys.dic` or `/usr/share/mctcli/mctcli_keys.dic` by default (lookup done in this order), or use `-k file` with one of [those](https://github.com/RfidResearchGroup/proxmark3/tree/master/client/dictionaries))
 - display keymap with permissions
 - read and display tag content (with colors !)
+- support libfreefare 0.4.0 (with `make OLDLIB=yes`) or current GitHub version (default)
+- be built with system wide keyfile at specific location (with `make SYSKEYFILE=/path/to/keyfile`, default is `/usr/share/mctcli/mctcli_keys.dic`)
 
 `mctcli` will, one day (perhaps):
 - save dumps to files
@@ -19,6 +21,7 @@ Usage:
 >>> List keys to try
 
 $ ./mctcli -l
+11 key(s) loaded from ./mctcli_keys.dic
 Key list:
     0: FF FF FF FF FF FF
     1: A0 B0 C0 D0 E0 F0
@@ -36,6 +39,7 @@ Key list:
 >>> Map tag
 
 $ ./mctcli -m
+11 key(s) loaded from ./mctcli_keys.dic
 NFC reader: ASK / LoGO opened
 0 : Mifare 1k (S50) with UID: 013c2e26
 Mapping... Sector:16/16   Key:  1/1  Got it!
@@ -62,6 +66,7 @@ Found all keys
 >>> Try keys, map and display content:
 
 $ ./mctcli -r
+11 key(s) loaded from ./mctcli_keys.dic
 NFC reader: ASK / LoGO opened
 0 : Mifare 1k (S50) with UID: 013c2e26
 Mapping... Sector:16/16   Key:  1/1  Got it!
