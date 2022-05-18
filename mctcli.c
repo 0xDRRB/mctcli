@@ -76,7 +76,7 @@ static void sighandler(int sig)
 
 void printhelp(char *binname)
 {
-	printf("Mifare Classic Tool CLI v0.0.1\n");
+	printf("Mifare Classic Tool CLI v0.0.2\n");
 	printf("Copyright (c) 2019 - Denis Bodor\n\n");
 	printf("Usage : %s [OPTIONS]\n", binname);
 	printf(" -k file         read keys from file (default: keys.txt)\n");
