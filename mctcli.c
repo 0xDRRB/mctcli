@@ -25,7 +25,11 @@
 #define BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
 #define BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
 
-#define FILENAME "keys.txt"
+#define KEYFILENAME "mctcli_keys.dic"
+
+#ifndef SYSKEYFILE
+#define SYSKEYFILE "/usr/share/mctcli/" KEYFILENAME
+#endif
 
 // if we are using non-github libfreefare
 #ifdef OLDFREEFARE  // v0.4.0 (2015)
@@ -334,10 +338,8 @@ int loadkeys(const char *filename)
 	MifareClassicKey tmpkey;
 
 	fp = fopen(filename, "rt");
-	if(fp == NULL) {
-		fprintf(stderr, "Error opening file %s: %s\n", filename, strerror(errno));
+	if(fp == NULL)
 		return(0);
-	}
 
 	while((read = getline(&strline, &len, fp)) != -1) {
 		// ignore empty line or starting with '#'
@@ -357,6 +359,9 @@ int loadkeys(const char *filename)
 	fclose(fp);
 	if(strline)
 		free(strline);
+
+	if(count)
+		printf("%d key(s) loaded from %s\n", count, filename);
 
 	return(count);
 }
@@ -391,6 +396,10 @@ int main(int argc, char** argv)
 	char *optconnstring = NULL;
 
 	char *rfilename = NULL;
+
+	char *home = NULL;
+	char *fullpath = NULL;
+	int keyfilepathsz;
 
 	// we don't store keys, but pointers to key in keyslist
 	struct keymap myKM[40] = {{ NULL, NULL, 0, 0, 0, 0 }};
@@ -451,13 +460,36 @@ int main(int argc, char** argv)
 			fprintf(stderr, "No key to use. Exiting.\n");
 			exit(EXIT_FAILURE);
 		}
-	} else {
-		if((nbrkeys = loadkeys(FILENAME)) < 1) {
-			fprintf(stderr, "No key to use. Exiting.\n");
+	} else if(!optlistdev) {
+		// get home directory
+		if((home=getenv("HOME")) == NULL) {
+			fprintf(stderr, "Unable to get $HOME\n");
 			exit(EXIT_FAILURE);
 		}
+		// compose path
+		keyfilepathsz = strlen(home)+1+strlen(KEYFILENAME)+1;
+		if((fullpath=(char *) malloc(keyfilepathsz)) == NULL) {
+			fprintf(stderr, "Memory allocation error: %s\n", strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+		if(snprintf(fullpath, keyfilepathsz, "%s/%s", home, KEYFILENAME) != keyfilepathsz-1) {
+			fprintf(stderr, "Keyfile path error\n");
+			exit(EXIT_FAILURE);
+		}
+		// try ~/mctcli_keys.dic
+		if((nbrkeys = loadkeys(fullpath)) < 1 ) {
+			if(fullpath) free (fullpath);
+			// try ./mctcli_keys.dic
+			if((nbrkeys = loadkeys("./" KEYFILENAME)) < 1) {
+				// try ${PREFIX}/usr/share/mctcli/mctcli_keys.dic
+				if((nbrkeys = loadkeys(SYSKEYFILE)) < 1) {
+					fprintf(stderr, "No keyfile to load. Exiting.\n");
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
 	}
-	if(optlistk)
+	if(optlistk && !optlistdev)
 		printkey();
 
 	if(!optread && !optmap && !optlistdev)
