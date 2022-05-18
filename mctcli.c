@@ -79,7 +79,7 @@ void printhelp(char *binname)
 	printf("Mifare Classic Tool CLI v0.0.2\n");
 	printf("Copyright (c) 2019 - Denis Bodor\n\n");
 	printf("Usage : %s [OPTIONS]\n", binname);
-	printf(" -k file         read keys from file (default: keys.txt)\n");
+	printf(" -k FILE         read keys from FILE\n");
 	printf(" -l              display keylist\n");
 	printf(" -L              list available readers/devices\n");
 	printf(" -d connstring   use this device (default: use the first available device)\n");
