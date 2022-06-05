@@ -23,8 +23,8 @@ all: ${TARGET}
 %.o: %.c
 	${CC} ${WARN} -c ${CFLAGS}  $< -o $@
 
-mynfc_lav: mctcli.o
-	${CC} ${WARN} ${LDFLAGS} -o $@ mctcli.o
+${TARGET}: mctcli.o
+	${CC} ${WARN} -o $@ mctcli.o ${LDFLAGS}
 
 clean:
 	rm -rf *.o ${TARGET}
